@@ -1,0 +1,94 @@
+name: Weekly digest
+
+on:
+  schedule:
+    # Mondays at 11:00 UTC -- 07:00 US Eastern during EDT, 06:00 during EST.
+    # GitHub cron has no timezone support, so pick the hour you prefer in
+    # summer and accept the winter shift, or run twice and dedupe (the
+    # seen-ledger makes a second run a no-op).
+    - cron: "0 11 * * 1"
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "Window length in days"
+        required: false
+        default: "7"
+      include_seen:
+        description: "Re-include items already reported (replay a week)"
+        type: boolean
+        default: false
+      no_email:
+        description: "Write the digest but do not email it"
+        type: boolean
+        default: false
+
+# Never let a manual run collide with the scheduled one: they share the
+# seen-ledger, and a mid-flight overwrite would lose a week.
+concurrency:
+  group: weekly-digest
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: pip install -e .
+
+      - name: Generate digest
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          DIGEST_TO: ${{ secrets.DIGEST_TO }}
+          # Optional: residential proxy for transcript fetching. Without it
+          # YouTube blocks GitHub's IP ranges and items degrade to
+          # description-only summaries. See the README.
+          WEBSHARE_PROXY_USERNAME: ${{ secrets.WEBSHARE_PROXY_USERNAME }}
+          WEBSHARE_PROXY_PASSWORD: ${{ secrets.WEBSHARE_PROXY_PASSWORD }}
+        run: |
+          digest run \
+            --days "${{ github.event.inputs.days || '7' }}" \
+            ${{ github.event.inputs.include_seen == 'true' && '--include-seen' || '' }} \
+            ${{ github.event.inputs.no_email == 'true' && '--no-email' || '' }}
+
+      - name: Commit the digest and updated state
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add digests data inbox
+          if git diff --staged --quiet; then
+            echo "Nothing changed this week."
+          else
+            git commit -m "Weekly digest: $(date -u +%Y-%m-%d)"
+            # The scheduled run is the only writer, but a manual run can race
+            # a push; rebase rather than fail the job.
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+
+      - name: Upload digest as an artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: digest
+          path: digests/
+          if-no-files-found: ignore
+          retention-days: 90

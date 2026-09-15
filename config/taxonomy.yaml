@@ -1,0 +1,59 @@
+# The digest's category set.
+#
+# Categories are assigned to a *source* once, then cached forever in
+# data/sources.json -- so editing this file does not silently re-bill you for
+# reclassification. Run `digest classify --recheck` after changing it.
+#
+# Keep this list small (6-10). A taxonomy with 25 buckets produces a digest
+# with one item per bucket, which is a list, not a briefing.
+#
+# `Unsorted` is required and is where anything that fits nothing else lands.
+
+categories:
+  - name: AI Engineering & Agents
+    description: >
+      Building with LLMs: agent architectures, RAG, evals, prompt and context
+      engineering, model releases and benchmarks, MCP, developer tooling.
+
+  - name: AI Governance & Policy
+    description: >
+      AI regulation, risk frameworks (NIST AI RMF, EU AI Act, ISO 42001),
+      enterprise AI adoption policy, model safety, audit and assurance,
+      responsible-AI practice inside organisations.
+
+  - name: Cybersecurity
+    description: >
+      Threat intelligence, incident analysis, detection engineering, offensive
+      and defensive tradecraft, cloud and identity security, vulnerability
+      research, security operations.
+
+  - name: Cloud & Platform Engineering
+    description: >
+      Azure and AWS services, infrastructure as code, Kubernetes, CI/CD,
+      observability, platform and reliability engineering.
+
+  - name: Software Engineering
+    description: >
+      Language and framework work (.NET, Python, web), architecture and design,
+      databases and data modelling, testing, performance, developer practice.
+
+  - name: Markets & Investing
+    description: >
+      Macroeconomics, asset management, market structure, company and sector
+      analysis, quantitative research, financial regulation.
+
+  - name: Design & Product
+    description: >
+      UX and interface design, design systems, product strategy and research,
+      data visualisation.
+
+  - name: Science & Ideas
+    description: >
+      Long-form explanation, research, history, mathematics, interviews and
+      essays that are not primarily about the categories above.
+
+  - name: Unsorted
+    description: >
+      Fallback bucket. Anything the classifier cannot place with reasonable
+      confidence. A growing Unsorted bucket means the taxonomy needs a new
+      category -- check `suggested_category` in data/sources.json.

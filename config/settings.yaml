@@ -1,0 +1,41 @@
+# Runtime settings. Every value here can be overridden by a CLI flag.
+
+period:
+  # Digest covers the N days before the run, as a half-open [start, end) window.
+  days: 7
+  # Weekday the period ends on when using `--align` (0 = Monday).
+  align_weekday: 0
+
+models:
+  # Map step: one call per item. Runs through the Batch API at 50% cost.
+  item: claude-opus-5
+  # Reduce step: one call per category, synthesising that category's week.
+  brief: claude-opus-5
+  # Classification: one call per new source, cached forever.
+  classify: claude-opus-5
+
+limits:
+  # Transcript characters fed to the map step per item. ~120k chars is roughly
+  # a 3-hour video; beyond that the marginal summary quality is flat.
+  max_body_chars: 120000
+  # Skip items shorter than this many seconds (Shorts, clips, teasers).
+  min_duration_seconds: 120
+  # Hard ceiling on items per run, newest first. Guards against a runaway week.
+  max_items_per_run: 400
+  # Items in a category below this signal score land in "skippable".
+  skippable_below: 3
+  # Max minutes to wait for the batch to finish before falling back to
+  # synchronous calls.
+  batch_timeout_minutes: 45
+
+sources:
+  # Channels whose uploads are always ignored (music, podcasts you listen to
+  # live, etc). Matched against source id or name, case-insensitively.
+  mute: []
+  # Treat these channel ids as this category, skipping the classifier.
+  pin: {}
+
+delivery:
+  # The digest is always written to digests/. Email is best-effort on top.
+  email: true
+  subject_template: "Weekly digest - week of {week_of} ({items} items)"
