@@ -1,6 +1,7 @@
 """Command line entry point.
 
     digest models           # list the models your API key can use
+    digest quota            # subscription usage before a big run
     digest sources          # refresh the subscription registry
     digest classify         # assign categories to new sources
     digest preview          # what would this week's digest cover? (no model calls)
@@ -47,7 +48,13 @@ def _pipeline(args: argparse.Namespace) -> Pipeline:
 def cmd_models(args: argparse.Namespace) -> int:
     from .models_cmd import run as run_models
 
-    return run_models(load_settings(), write=args.write)
+    return run_models(load_settings(), write=args.write, pin=args.pin)
+
+
+def cmd_quota(args: argparse.Namespace) -> int:
+    from .models_cmd import quota
+
+    return quota(load_settings())
 
 
 def cmd_sources(args: argparse.Namespace) -> int:
@@ -159,7 +166,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--write", action="store_true",
         help="Pick a model for each pipeline step and write them to config/settings.yaml",
     )
+    p_models.add_argument(
+        "--pin", action="store_true",
+        help="Write concrete model ids instead of syn: aliases. Reproducible, "
+             "but they 404 when Synthetic rotates that model out.",
+    )
     p_models.set_defaults(func=cmd_models)
+
+    p_quota = sub.add_parser("quota", help="Show current subscription usage")
+    p_quota.set_defaults(func=cmd_quota)
 
     p_sources = sub.add_parser("sources", help="Refresh the source registry")
     p_sources.add_argument("--takeout", help="Path to a Google Takeout subscriptions.csv")

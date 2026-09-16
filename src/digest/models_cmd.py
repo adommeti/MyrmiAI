@@ -16,10 +16,28 @@ from .config import CONFIG_DIR, Settings
 
 log = logging.getLogger(__name__)
 
-# Rough ordering hints applied to model *ids*, since an OpenAI-compatible
-# catalogue rarely reports parameter counts. Deliberately crude: it produces a
-# reasonable starting point that you are expected to override once you have
-# opinions about which model writes the better brief.
+# Synthetic's documented aliases. They route to whatever that category's
+# current recommended model is, which is why the vendor prefers them to pinned
+# ids: "Pinning to specific model names risks 404 errors when we rotate older
+# models out." The right-hand side is what each resolved to when these docs
+# were written -- shown for orientation only, never used as a value.
+SYN_ALIASES = {
+    "syn:large:text": "hf:zai-org/GLM-5.3-Flash",
+    "syn:small:text": "hf:zai-org/GLM-4.7-Flash",
+    "syn:large:vision": "hf:moonshotai/Kimi-K3",
+    "syn:small:vision": "hf:Qwen/Qwen3.8-27B",
+}
+
+ALIAS_DEFAULTS = {
+    "brief": "syn:large:text",
+    "item": "syn:large:text",
+    "classify": "syn:small:text",
+}
+
+# Rough ordering hints applied to model *ids*, used only for `--pin` and for
+# non-Synthetic providers that have no alias scheme. Deliberately crude: a
+# starting point you are expected to override once you have opinions about
+# which model writes the better brief.
 _SMALL_MARKERS = ("flash", "mini", "lite", "air", "small", "turbo", "instruct-7", "-8b", "-9b")
 _LARGE_MARKERS = ("pro", "max", "opus", "ultra", "plus", "thinking", "reasoner")
 _FAMILY_BONUS = ("kimi", "glm", "deepseek", "qwen", "minimax", "llama", "mistral")
@@ -34,8 +52,17 @@ def _score(model_id: str) -> tuple[int, int]:
     return capability, economy
 
 
-def choose_defaults(model_ids: list[str]) -> dict[str, str]:
-    """Pick a model per pipeline step. A starting point, not a recommendation."""
+def choose_defaults(model_ids: list[str], *, pin: bool = False) -> dict[str, str]:
+    """Pick a model per pipeline step.
+
+    Unpinned (the default) this returns Synthetic's aliases, which is the
+    vendor's own guidance and survives model rotation. ``pin=True`` resolves
+    concrete ids from the live catalogue instead: reproducible, but it will
+    404 the day that model is retired.
+    """
+    if not pin:
+        return dict(ALIAS_DEFAULTS)
+
     if not model_ids:
         return {}
 
@@ -51,6 +78,12 @@ def choose_defaults(model_ids: list[str]) -> dict[str, str]:
         "item": workhorse,
         "classify": cheapest[0],
     }
+
+
+def format_aliases() -> str:
+    lines = ["ALIAS".ljust(20) + "  RESOLVED TO (at time of writing)"]
+    lines += [f"{alias.ljust(20)}  {target}" for alias, target in SYN_ALIASES.items()]
+    return "\n".join(lines)
 
 
 def format_catalogue(models: list[dict[str, Any]]) -> str:
@@ -105,7 +138,7 @@ def write_models(chosen: dict[str, str], config_dir: Path | None = None) -> Path
     return path
 
 
-def run(settings: Settings, *, write: bool) -> int:
+def run(settings: Settings, *, write: bool, pin: bool = False) -> int:
     from .llm import get_provider
 
     provider = get_provider(settings)
@@ -122,6 +155,14 @@ def run(settings: Settings, *, write: bool) -> int:
     print(format_catalogue(models))
     model_ids = [m.get("id", "") for m in models if m.get("id")]
 
+    if settings.provider == "synthetic":
+        print("\n" + format_aliases())
+        print(
+            "\nAliases are not listed by /models -- they are routing labels, not "
+            "models. Prefer them: pinning an hf: id 404s when that model is "
+            "rotated out."
+        )
+
     if not write:
         current = {
             "item": settings.model_item,
@@ -129,20 +170,25 @@ def run(settings: Settings, *, write: bool) -> int:
             "classify": settings.model_classify,
         }
         unset = [step for step, value in current.items() if not value]
-        print(f"\n{len(model_ids)} model(s) available.")
+        print(f"\n{len(model_ids)} model(s) available. Configured:")
         if unset:
             print(
-                f"Not yet configured: {', '.join(sorted(unset))}. "
-                "Run `digest models --write` to fill them in, or edit "
-                "config/settings.yaml."
+                f"  not set: {', '.join(sorted(unset))} -- run "
+                "`digest models --write`."
             )
-        else:
-            for step, value in current.items():
-                marker = "" if value in model_ids else "   <-- not in the catalogue above"
-                print(f"  {step:9s} {value}{marker}")
+        for step, value in current.items():
+            if not value:
+                continue
+            if value in SYN_ALIASES:
+                note = f"   (alias -> {SYN_ALIASES[value]} at time of writing)"
+            elif value in model_ids:
+                note = "   (pinned)"
+            else:
+                note = "   <-- not an alias and not in the catalogue above"
+            print(f"  {step:9s} {value}{note}")
         return 0
 
-    chosen = choose_defaults(model_ids)
+    chosen = choose_defaults(model_ids, pin=pin or settings.provider != "synthetic")
     if not chosen:
         print("\nNothing to write: the catalogue is empty.")
         return 1
@@ -151,9 +197,38 @@ def run(settings: Settings, *, write: bool) -> int:
     print(f"\nWrote to {path}:")
     for step in ("classify", "item", "brief"):
         print(f"  {step:9s} {chosen[step]}")
-    print(
-        "\nThese are heuristic picks from the model ids, not benchmarks. The "
-        "`brief` model is the one you will notice, so try a couple there and "
-        "keep whichever reads better."
-    )
+    if pin:
+        print(
+            "\nPinned to concrete ids. These will 404 when Synthetic rotates "
+            "them out -- rerun `digest models --write` (without --pin) to go "
+            "back to aliases."
+        )
+    else:
+        print(
+            "\nThe `brief` model is the one you will actually notice. If you "
+            "hit rate limits, move `item` to syn:small:text first -- it is the "
+            "highest-volume step and small models have a separate limit."
+        )
+    return 0
+
+
+def quota(settings: Settings) -> int:
+    """`digest quota` -- what is left on the subscription before a big run."""
+    import json as _json
+
+    from .llm import get_provider
+
+    provider = get_provider(settings)
+    fetch = getattr(provider, "fetch_quota", None)
+    if fetch is None:
+        print(f"The {provider.name} provider does not expose a quota endpoint.")
+        return 1
+    try:
+        payload = fetch()
+    except Exception as exc:
+        print(f"Could not read quota: {exc}")
+        return 1
+    # The response shape is not documented, so print it rather than guess at
+    # field names and silently show nothing.
+    print(_json.dumps(payload, indent=2, sort_keys=True))
     return 0

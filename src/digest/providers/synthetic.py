@@ -106,6 +106,36 @@ class SyntheticProvider:
         payload = response.json()
         return payload.get("data", payload if isinstance(payload, list) else [])
 
+    def fetch_quota(self) -> Any:
+        """Current subscription usage, via Synthetic's `/quotas` endpoint.
+
+        The docs list `/quotas` under "Synthetic endpoints" without giving a
+        base URL, and the one sibling endpoint they do show (`/search`) lives
+        at `/v2/`. So try the plausible paths rather than hardcode a guess,
+        and say which one answered.
+        """
+        root = self.base_url.split("/openai/")[0].split("/v1")[0].rstrip("/")
+        candidates = [f"{root}/v2/quotas", f"{root}/quotas", f"{self.base_url}/quotas"]
+
+        errors: list[str] = []
+        for url in candidates:
+            try:
+                response = self.session.get(url, headers=self._headers, timeout=30)
+            except requests.RequestException as exc:
+                errors.append(f"{url}: {exc}")
+                continue
+            if response.status_code == 200:
+                log.info("Quota read from %s", url)
+                try:
+                    return response.json()
+                except ValueError:
+                    return {"raw": response.text[:1000], "endpoint": url}
+            errors.append(f"{url}: http {response.status_code}")
+
+        raise RuntimeError(
+            "No quota endpoint answered. Tried:\n  " + "\n  ".join(errors)
+        )
+
     def _post(self, body: dict[str, Any]) -> tuple[int, Any]:
         """One chat completion, with backoff on transient failures."""
         last: tuple[int, Any] = (0, "no attempt made")

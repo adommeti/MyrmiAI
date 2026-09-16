@@ -314,3 +314,42 @@ def test_each_model_is_probed_separately(monkeypatch):
         )
     assert by_model["hf:one/model"] == ["json_schema", "json_object", "json_object"]
     assert by_model["hf:two/model"] == ["json_schema", "json_schema"]
+
+
+def test_quota_tries_the_documented_sibling_path_first():
+    """`/quotas` has no documented base URL; `/search` lives at /v2/, so try there."""
+    session = FakeSession([FakeResponse(200, {"used": 1200, "limit": 5000})])
+    provider = SyntheticProvider(
+        api_key="k", base_url="https://api.synthetic.new/openai/v1", session=session
+    )
+    assert provider.fetch_quota() == {"used": 1200, "limit": 5000}
+
+
+def test_quota_falls_back_through_candidate_paths():
+    session = FakeSession([
+        FakeResponse(404, text="not found"),          # /v2/quotas
+        FakeResponse(200, {"used": 7}),               # /quotas
+    ])
+    provider = SyntheticProvider(
+        api_key="k", base_url="https://api.synthetic.new/openai/v1", session=session
+    )
+    assert provider.fetch_quota() == {"used": 7}
+
+
+def test_quota_reports_every_path_it_tried_when_none_answer():
+    session = FakeSession([FakeResponse(404, text="x") for _ in range(3)])
+    provider = SyntheticProvider(
+        api_key="k", base_url="https://api.synthetic.new/openai/v1", session=session
+    )
+    with pytest.raises(RuntimeError, match="No quota endpoint answered"):
+        provider.fetch_quota()
+
+
+def test_syn_aliases_pass_through_unchanged():
+    """An alias is sent verbatim; the gateway resolves it, not us."""
+    session = FakeSession([
+        FakeResponse(200, completion('{"headline": "h", "signal": 4}'))
+    ])
+    provider = SyntheticProvider(api_key="k", session=session, concurrency=1)
+    provider.run([job(model="syn:large:text")])
+    assert session.requests[0]["model"] == "syn:large:text"

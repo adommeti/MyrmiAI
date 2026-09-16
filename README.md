@@ -45,30 +45,54 @@ The only hard failure is a missing `ANTHROPIC_API_KEY`.
 
 ## The LLM provider
 
-Runs on [synthetic.new](https://synthetic.new) by default — open models (Kimi,
-GLM, DeepSeek, Qwen) through an OpenAI-compatible endpoint, on your existing
+Verified API details — base URLs, the model table, rate-limit behaviour — are in
+[`docs/synthetic-api.md`](docs/synthetic-api.md), transcribed from Synthetic's
+docs because those pages are not reachable from CI.
+
+Runs on [synthetic.new](https://synthetic.new) by default — open models (GLM,
+Kimi, DeepSeek, Qwen, Nemotron, gpt-oss) through their OpenAI-compatible
+endpoint at `https://api.synthetic.new/openai/v1`, on your existing
 subscription. `provider.name: anthropic` in `config/settings.yaml` switches back
 to the Claude API if you ever want to compare output quality side by side.
 
 Three things about open models shaped this code, and they are worth knowing
 before you debug anything:
 
-**Model IDs are never hardcoded.** The catalogue is account-specific and moves,
-so `config/settings.yaml` ships with the three model fields blank and the
-project reads the real list from your key:
+**Models are named by alias, not pinned.** Synthetic's docs are explicit:
+*"Pinning to specific model names risks 404 errors when we rotate older models
+out."* So `config/settings.yaml` ships with `syn:` aliases, which route to
+whatever each category's current recommended model is:
+
+| Alias | Resolves to today | Context |
+|---|---|---|
+| `syn:large:text` | `hf:zai-org/GLM-5.3-Flash` | 512k |
+| `syn:small:text` | `hf:zai-org/GLM-4.7-Flash` | 192k |
+| `syn:large:vision` | `hf:moonshotai/Kimi-K3` | 512k |
+| `syn:small:vision` | `hf:Qwen/Qwen3.8-27B` | 256k |
+
+Other always-on models on every subscription: `hf:deepseek-ai/DeepSeek-V4.1-Flash`
+(512k, beta), `hf:nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4` (256k),
+`hf:openai/gpt-oss-120b` (128k).
 
 ```bash
-digest models           # what your key can actually use
-digest models --write   # fill in all three steps automatically
+digest models           # live catalogue + what the aliases point at
+digest models --write   # adopt the aliases (the default, recommended)
+digest models --pin     # write concrete ids instead: reproducible, but they
+                        # 404 the day that model is rotated out
+digest quota            # subscription usage, before you kick off a big run
 ```
 
-The picks `--write` makes are heuristics on the model *names*, not benchmarks —
-a starting point you are expected to override. The `brief` model is the one
-you will notice; try two and keep whichever reads better.
+Which model goes where: `brief` is the step you actually read, so it gets the
+large model. `item` is also large by default — weak item summaries poison every
+brief built on them. `classify` is a nine-way choice run once per channel and
+cached forever, so small is plenty. **If you hit rate limits, move `item` to
+`syn:small:text` first** — it is the highest-volume step, and small models have
+their own more generous limit.
 
-**Structured output support varies per model.** There is no constrained decoder
-you can rely on across a mixed catalogue, so the provider probes once per model
-and remembers the answer for the run:
+**Structured output support varies per model.** Synthetic documents the
+endpoint as OpenAI-compatible but makes no promise about a constrained decoder
+across a mixed open-model catalogue, so the provider probes once per model and
+remembers the answer for the run:
 
 ```
 json_schema  ──(400 / ignored)──►  json_object  ──(400 / ignored)──►  prompt-only
@@ -94,8 +118,11 @@ git clone https://github.com/adommeti/MyrmiAI && cd MyrmiAI
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 cp .env.example .env          # add SYNTHETIC_API_KEY
-digest models --write         # discover and adopt your model catalogue
 ```
+
+The shipped `syn:` aliases work out of the box — there is no mandatory
+discovery step. `digest models` is there when you want to see the catalogue or
+change the assignment.
 
 Then connect your subscriptions, either way:
 
@@ -163,7 +190,11 @@ throughput comes from `provider.concurrency` (default 6).
 At concurrency 6 a 50-item week is a few minutes of wall clock. Raise
 `concurrency` if your plan allows it; drop it to 2–3 if you see 429s — the
 provider retries those with jittered backoff, but sustained rate limiting just
-slows the run down.
+slows the run down. `digest quota` shows where you stand before you start.
+
+Rate limits vary by subscription tier, and small models are metered separately,
+so moving the `item` step to `syn:small:text` buys headroom without touching the
+brief you actually read.
 
 Other levers in `config/settings.yaml`: `min_duration_seconds` (drops Shorts),
 `max_items_per_run`, `max_body_chars`, and `sources.mute`.
@@ -217,6 +248,20 @@ data/                sources.json, seen.json (committed; git log is the audit tr
 digests/             one .md and .html per week
 ```
 
+## Two Synthetic endpoints this does not use yet
+
+Recorded here so they are not rediscovered later:
+
+- **`POST /v2/search`** — zero-data-retention web search, returning
+  `{url, title, text, published}`. It returns extracted page text, which could
+  replace `trafilatura` for saved links in CI, where direct fetching is more
+  likely to hit paywalls or blocks. It is search-by-query, not fetch-by-URL, so
+  it is not a drop-in.
+- **`/embeddings`** (`hf:nomic-ai/nomic-embed-text-v1.5`) — free, and requests
+  do not count against the subscription rate limit. The obvious use is
+  cross-week deduplication: catching that three channels covered the same story,
+  or that this week's video repeats one from a month ago.
+
 ## Adding a source type
 
 `SourceAdapter` in `src/digest/sources/base.py` is two methods — `discover()`
@@ -232,7 +277,7 @@ archive is roughly 60 lines.
 pytest -q
 ```
 
-84 tests, no network and no model calls. Worth reading first:
+99 tests, no network and no model calls. Worth reading first:
 
 - `tests/test_pipeline.py` — the two invariants the design rests on: a rerun of
   the same week reports nothing twice, and a failed summary or brief costs one
