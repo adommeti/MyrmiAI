@@ -1,5 +1,6 @@
 """Command line entry point.
 
+    digest models           # list the models your API key can use
     digest sources          # refresh the subscription registry
     digest classify         # assign categories to new sources
     digest preview          # what would this week's digest cover? (no model calls)
@@ -41,6 +42,12 @@ def _pipeline(args: argparse.Namespace) -> Pipeline:
         store=Store(),
         takeout_csv=Path(args.takeout) if getattr(args, "takeout", None) else None,
     )
+
+
+def cmd_models(args: argparse.Namespace) -> int:
+    from .models_cmd import run as run_models
+
+    return run_models(load_settings(), write=args.write)
 
 
 def cmd_sources(args: argparse.Namespace) -> int:
@@ -146,6 +153,13 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Re-include items already reported in a previous digest")
         p.add_argument("--skip-discovery", action="store_true",
                        help="Use the stored registry; do not call the subscriptions API")
+
+    p_models = sub.add_parser("models", help="List the models your API key can use")
+    p_models.add_argument(
+        "--write", action="store_true",
+        help="Pick a model for each pipeline step and write them to config/settings.yaml",
+    )
+    p_models.set_defaults(func=cmd_models)
 
     p_sources = sub.add_parser("sources", help="Refresh the source registry")
     p_sources.add_argument("--takeout", help="Path to a Google Takeout subscriptions.csv")

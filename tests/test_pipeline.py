@@ -44,6 +44,7 @@ def _items(source: Source) -> list[ContentItem]:
 def harness(tmp_path, monkeypatch):
     settings = load_settings()
     settings.email = False
+    settings.model_item = settings.model_brief = settings.model_classify = "hf:test/model"
     store = Store(data_dir=tmp_path / "data")
 
     source = Source.for_youtube_channel("UC1", "Test Channel")
@@ -252,7 +253,9 @@ def test_saved_link_domains_are_not_sent_to_the_classifier(harness, monkeypatch)
     channel = Source.for_youtube_channel("UC9", "Unclassified Channel")
     monkeypatch.setattr(classify_mod, "sample_titles", lambda *a, **k: [])
 
-    classify_sources([web, channel], load_settings())
+    settings = load_settings()
+    settings.model_classify = "hf:test/model"
+    classify_sources([web, channel], settings)
 
     assert len(called) == 1
     assert [job.custom_id for job in called[0]] == ["yt:UC9"]

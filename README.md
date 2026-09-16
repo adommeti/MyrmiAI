@@ -20,9 +20,9 @@ same digest.
                             ▼
                      dedupe against the seen-ledger
                             │
-                  MAP  ─────┴───► one summary per item        (Batch API, 50% cost)
+                  MAP  ─────┴───► one summary per item        (worker pool, N in flight)
                             │
-                 REDUCE ────┴───► one brief per category      (Opus 5, effort: high)
+                 REDUCE ────┴───► one brief per category
                             │
                             ▼
               digests/<week>.md + .html  ──►  email, artifact, git commit
@@ -37,11 +37,55 @@ avoidable cost in the pipeline. Individual items can still override.
 
 **The reduce step never sees a transcript.** It reads only the item summaries,
 so 40 hours of video reaches it as ~40 short JSON objects. Synthesis cost is
-flat in how much you watched.
+flat in how much you watched, and the brief fits any model's context window.
 
 **Everything degrades rather than aborts.** A dead channel, a missing
 transcript, a refused summary, or broken SMTP each cost one piece of the digest.
 The only hard failure is a missing `ANTHROPIC_API_KEY`.
+
+## The LLM provider
+
+Runs on [synthetic.new](https://synthetic.new) by default — open models (Kimi,
+GLM, DeepSeek, Qwen) through an OpenAI-compatible endpoint, on your existing
+subscription. `provider.name: anthropic` in `config/settings.yaml` switches back
+to the Claude API if you ever want to compare output quality side by side.
+
+Three things about open models shaped this code, and they are worth knowing
+before you debug anything:
+
+**Model IDs are never hardcoded.** The catalogue is account-specific and moves,
+so `config/settings.yaml` ships with the three model fields blank and the
+project reads the real list from your key:
+
+```bash
+digest models           # what your key can actually use
+digest models --write   # fill in all three steps automatically
+```
+
+The picks `--write` makes are heuristics on the model *names*, not benchmarks —
+a starting point you are expected to override. The `brief` model is the one
+you will notice; try two and keep whichever reads better.
+
+**Structured output support varies per model.** There is no constrained decoder
+you can rely on across a mixed catalogue, so the provider probes once per model
+and remembers the answer for the run:
+
+```
+json_schema  ──(400 / ignored)──►  json_object  ──(400 / ignored)──►  prompt-only
+```
+
+A model that refuses a mode gets downgraded, not failed. `digest run -v` logs
+which mode each model settled on — if a model never gets past `prompt`, that is
+the one to replace.
+
+**Reasoning models leak their thinking.** Kimi, GLM and DeepSeek thinking
+variants return `<think>` blocks, markdown fences, prose around the object, or
+put the answer in `reasoning_content` while leaving `content` empty. All of
+that is stripped before parsing, and near-miss types (a list that arrived as a
+string, `"4"` instead of `4`) are repaired rather than thrown away — the
+content is usually right even when the envelope is not. See
+`src/digest/providers/jsonmode.py`; it is the most heavily tested file in the
+project for a reason.
 
 ## Setup
 
@@ -49,7 +93,8 @@ The only hard failure is a missing `ANTHROPIC_API_KEY`.
 git clone https://github.com/adommeti/MyrmiAI && cd MyrmiAI
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-cp .env.example .env          # add ANTHROPIC_API_KEY
+cp .env.example .env          # add SYNTHETIC_API_KEY
+digest models --write         # discover and adopt your model catalogue
 ```
 
 Then connect your subscriptions, either way:
@@ -64,7 +109,7 @@ Then:
 
 ```bash
 digest sources      # build the registry
-digest classify     # assign categories (one-time cost, ~$1-2 for 200 channels)
+digest classify     # assign categories (one-time, one call per channel)
 digest preview      # what this week would cover — makes no model calls
 digest run          # the real thing
 ```
@@ -81,7 +126,7 @@ Secrets and variables → Actions):
 
 | Secret | Required | Notes |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | yes | |
+| `SYNTHETIC_API_KEY` | yes | or `ANTHROPIC_API_KEY` if you switch providers |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REFRESH_TOKEN` | for live subscriptions | from `scripts/auth_youtube.py` |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `DIGEST_TO` | for email | Gmail needs an [App Password](https://myaccount.google.com/apppasswords) |
 | `WEBSHARE_PROXY_USERNAME` / `WEBSHARE_PROXY_PASSWORD` | recommended | see Transcripts below |
@@ -103,22 +148,26 @@ Saved links are fetched, summarised, and categorised by content — a saved
 article about Entra ID lands in Cybersecurity next to the videos, not in a
 separate "links" section. After each run they move to `inbox/archive/`.
 
-## Cost
+## Cost and throughput
 
-Rough, for Opus 5 (`$5`/`$25` per MTok, halved by the Batch API on the map step):
+On a synthetic.new subscription the per-token arithmetic that drove the original
+design mostly goes away — what you are managing now is **time and rate limits**,
+not dollars. There is no batch queue on an OpenAI-compatible gateway, so
+throughput comes from `provider.concurrency` (default 6).
 
-| | Estimate |
-|---|---|
-| One item, 45-min transcript | ~$0.03 |
-| A 50-item week, including briefs | ~$1.50–$2.00 |
-| One-time classification, 200 channels | ~$1–2 |
+| | Requests | Notes |
+|---|---|---|
+| One-time classification | one per channel | ~200 for a typical subscription list |
+| A 50-item week | ~50 + one per category | the map step dominates |
 
-So roughly **$8/month**. Switching `models.item` to `claude-sonnet-5` in
-`config/settings.yaml` cuts the map step — the bulk of the bill — by about 60%
-while leaving the synthesis step on Opus 5, which is where quality is visible.
+At concurrency 6 a 50-item week is a few minutes of wall clock. Raise
+`concurrency` if your plan allows it; drop it to 2–3 if you see 429s — the
+provider retries those with jittered backoff, but sustained rate limiting just
+slows the run down.
 
-Levers in `config/settings.yaml`: `min_duration_seconds` (drops Shorts),
+Other levers in `config/settings.yaml`: `min_duration_seconds` (drops Shorts),
 `max_items_per_run`, `max_body_chars`, and `sources.mute`.
+
 
 ## Transcripts, honestly
 
@@ -148,7 +197,13 @@ src/digest/
     base.py          the two-method contract every source type implements
     youtube.py       subscriptions, RSS, durations, transcripts
     web.py           inbox links, fetching, article extraction
-  llm.py             Claude jobs: Batch API with a synchronous fallback
+  llm.py             job dispatch; providers are selected by config
+  providers/
+    base.py          the Job / JobResult contract every provider implements
+    synthetic.py     OpenAI-compatible, worker pool, schema-mode ladder
+    jsonmode.py      reasoning stripping, JSON extraction, type repair
+    anthropic.py     Claude API with the Batch queue (optional backend)
+  models_cmd.py      `digest models`: read the catalogue, adopt defaults
   classify.py        source → category
   summarize.py       map (per item) and reduce (per category)
   render.py          Markdown and HTML
@@ -177,7 +232,11 @@ archive is roughly 60 lines.
 pytest -q
 ```
 
-37 tests, no network and no model calls. The ones worth reading first are in
-`tests/test_pipeline.py`: they assert the two invariants the design rests on —
-a rerun of the same week reports nothing twice, and a failed summary or brief
-costs one piece rather than the digest.
+84 tests, no network and no model calls. Worth reading first:
+
+- `tests/test_pipeline.py` — the two invariants the design rests on: a rerun of
+  the same week reports nothing twice, and a failed summary or brief costs one
+  piece rather than the digest.
+- `tests/test_jsonmode.py` and `tests/test_provider_synthetic.py` — every way an
+  open model can hand you something that is not quite JSON, and what happens
+  next.

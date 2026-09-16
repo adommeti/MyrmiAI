@@ -27,9 +27,17 @@ class Category:
 class Settings:
     period_days: int = 7
     align_weekday: int = 0
-    model_item: str = "claude-opus-5"
-    model_brief: str = "claude-opus-5"
-    model_classify: str = "claude-opus-5"
+    # Provider
+    provider: str = "synthetic"
+    base_url: str = "https://api.synthetic.new/openai/v1"
+    concurrency: int = 6
+    temperature: float = 0.2
+    schema_mode: str = "auto"       # auto | json_schema | json_object | prompt
+    # Models. Empty by default on purpose: the catalogue is account-specific,
+    # so `digest models` reads it from the API rather than this file guessing.
+    model_item: str = ""
+    model_brief: str = ""
+    model_classify: str = ""
     max_body_chars: int = 120_000
     min_duration_seconds: int = 120
     max_items_per_run: int = 400
@@ -53,6 +61,24 @@ class Settings:
         needles = {m.lower() for m in self.mute}
         return source_id.lower() in needles or name.lower() in needles
 
+    def model_for(self, step: str) -> str:
+        """The model for a pipeline step, with an actionable error if unset."""
+        model = {
+            "item": self.model_item,
+            "brief": self.model_brief,
+            "classify": self.model_classify,
+        }[step]
+        if not model:
+            raise RuntimeError(
+                f"No model configured for the '{step}' step. Your provider's "
+                f"catalogue is account-specific, so run:\n\n"
+                f"    digest models            # list what your key can use\n"
+                f"    digest models --write    # pick sensible defaults for all "
+                f"three steps\n\n"
+                f"or set models.{step} in config/settings.yaml by hand."
+            )
+        return model
+
     def category_order(self, name: str) -> int:
         """Taxonomy order is the digest's section order -- it is editorial."""
         try:
@@ -74,6 +100,7 @@ def load_settings(config_dir: Path | None = None) -> Settings:
     taxonomy = _read_yaml(config_dir / "taxonomy.yaml")
 
     period = raw.get("period", {})
+    provider = raw.get("provider", {})
     models = raw.get("models", {})
     limits = raw.get("limits", {})
     sources = raw.get("sources", {})
@@ -90,9 +117,14 @@ def load_settings(config_dir: Path | None = None) -> Settings:
     return Settings(
         period_days=int(period.get("days", defaults.period_days)),
         align_weekday=int(period.get("align_weekday", defaults.align_weekday)),
-        model_item=models.get("item", defaults.model_item),
-        model_brief=models.get("brief", defaults.model_brief),
-        model_classify=models.get("classify", defaults.model_classify),
+        provider=provider.get("name", defaults.provider),
+        base_url=provider.get("base_url", defaults.base_url),
+        concurrency=int(provider.get("concurrency", defaults.concurrency)),
+        temperature=float(provider.get("temperature", defaults.temperature)),
+        schema_mode=provider.get("schema_mode", defaults.schema_mode),
+        model_item=models.get("item") or defaults.model_item,
+        model_brief=models.get("brief") or defaults.model_brief,
+        model_classify=models.get("classify") or defaults.model_classify,
         max_body_chars=int(limits.get("max_body_chars", defaults.max_body_chars)),
         min_duration_seconds=int(limits.get("min_duration_seconds", defaults.min_duration_seconds)),
         max_items_per_run=int(limits.get("max_items_per_run", defaults.max_items_per_run)),

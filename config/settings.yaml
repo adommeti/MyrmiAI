@@ -1,22 +1,48 @@
 # Runtime settings. Every value here can be overridden by a CLI flag.
 
+provider:
+  # synthetic = synthetic.new's OpenAI-compatible endpoint (open models).
+  # anthropic = the Claude API (needs: pip install -e ".[anthropic]").
+  name: synthetic
+  base_url: https://api.synthetic.new/openai/v1
+  # Parallel in-flight requests. There is no batch queue on an OpenAI-compatible
+  # gateway, so throughput comes from concurrency. Raise if your plan allows it;
+  # lower to 2-3 if you start seeing 429s.
+  concurrency: 6
+  # Low but non-zero: summarisation wants faithfulness, and some open models
+  # degenerate into repetition at exactly 0.
+  temperature: 0.2
+  # auto  = try json_schema, fall back to json_object, then to prompt-only,
+  #         remembering per model what worked.
+  # Pin to one mode only if you know your models' behaviour and want to skip
+  # the probe.
+  schema_mode: auto
+
+models:
+  # Deliberately blank. The catalogue is account-specific and model IDs change,
+  # so read it from the API rather than trusting a value written here months ago:
+  #
+  #     digest models           # list what your key can actually use
+  #     digest models --write   # fill these three in automatically
+  #
+  # Rough guidance once you can see the list: the `brief` step is where quality
+  # is visible to you, so give it the strongest model. `item` runs once per
+  # video and dominates throughput. `classify` is a 9-way choice run once per
+  # channel -- the cheapest model that can follow a schema is plenty.
+  item: ""
+  brief: ""
+  classify: ""
+
 period:
   # Digest covers the N days before the run, as a half-open [start, end) window.
   days: 7
   # Weekday the period ends on when using `--align` (0 = Monday).
   align_weekday: 0
 
-models:
-  # Map step: one call per item. Runs through the Batch API at 50% cost.
-  item: claude-opus-5
-  # Reduce step: one call per category, synthesising that category's week.
-  brief: claude-opus-5
-  # Classification: one call per new source, cached forever.
-  classify: claude-opus-5
-
 limits:
   # Transcript characters fed to the map step per item. ~120k chars is roughly
-  # a 3-hour video; beyond that the marginal summary quality is flat.
+  # 30k tokens, which fits every model on the platform with room for the
+  # response. Raise it only if your chosen `item` model has the context for it.
   max_body_chars: 120000
   # Skip items shorter than this many seconds (Shorts, clips, teasers).
   min_duration_seconds: 120
@@ -24,8 +50,7 @@ limits:
   max_items_per_run: 400
   # Items in a category below this signal score land in "skippable".
   skippable_below: 3
-  # Max minutes to wait for the batch to finish before falling back to
-  # synchronous calls.
+  # Only used by the anthropic provider's batch queue.
   batch_timeout_minutes: 45
 
 sources:

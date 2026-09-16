@@ -99,7 +99,6 @@ def classify_sources(
     *,
     session: requests.Session | None = None,
     recheck: bool = False,
-    use_batch: bool = True,
 ) -> list[Source]:
     """Fill in ``category`` for sources that lack one. Returns those changed."""
     session = session or requests.Session()
@@ -136,16 +135,17 @@ def classify_sources(
             system=system,
             user=_user_prompt(source, sample_titles(source, session)),
             schema=SCHEMA,
-            model=settings.model_classify,
-            max_tokens=1500,
-            # Placing a known channel in a 9-item taxonomy is not a hard
-            # problem; low effort keeps the first-run cost down.
+            model=settings.model_for("classify"),
+            # Generous enough that a thinking model can reason and still have
+            # room to emit the object: a truncated response is a lost
+            # classification.
+            max_tokens=2000,
             effort="low",
         )
         for source in pending
     ]
 
-    results = run_jobs(jobs, use_batch=use_batch, label="classify")
+    results = run_jobs(jobs, settings=settings, label="classify")
     changed: list[Source] = []
     for source in pending:
         result: JobResult | None = results.get(source.id)

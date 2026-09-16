@@ -1,7 +1,7 @@
 """Map/reduce over the week's content.
 
-Map: one call per item, producing a compact structured summary. Independent,
-order-free, and latency-tolerant -- so it runs through the Batch API.
+Map: one call per item, producing a compact structured summary. Independent and
+order-free, so the provider fans them out across a worker pool.
 
 Reduce: one call per category, which sees only the *summaries*, never the raw
 transcripts. That is what keeps the reduce step cheap and its context small no
@@ -125,7 +125,6 @@ def summarize_items(
     settings: Settings,
     *,
     store: Store | None = None,
-    use_batch: bool = True,
 ) -> dict[str, ItemSummary]:
     """Map step. Returns ``item_id -> ItemSummary`` for everything that succeeded."""
     summaries: dict[str, ItemSummary] = {}
@@ -157,8 +156,9 @@ def summarize_items(
                 system=system,
                 user=_item_user_prompt(item, source, settings),
                 schema=ITEM_SCHEMA,
-                model=settings.model_item,
-                max_tokens=4000,
+                model=settings.model_for("item"),
+                # Headroom for a thinking model's reasoning plus the object.
+                max_tokens=6000,
                 # Thin items are a formatting exercise; full transcripts need
                 # real reading, so they get the budget.
                 effort="low" if item.is_thin else "medium",
@@ -166,12 +166,7 @@ def summarize_items(
         )
 
     log.info("Summarising %d item(s).", len(jobs))
-    results = run_jobs(
-        jobs,
-        use_batch=use_batch,
-        timeout_minutes=settings.batch_timeout_minutes,
-        label="summarise",
-    )
+    results = run_jobs(jobs, settings=settings, label="summarise")
 
     valid = set(settings.category_names)
     for item in pending:
@@ -297,8 +292,8 @@ def build_briefs(
             system=BRIEF_SYSTEM,
             user=_brief_user_prompt(category, bucket, items, sources),
             schema=BRIEF_SCHEMA,
-            model=settings.model_brief,
-            max_tokens=8000,
+            model=settings.model_for("brief"),
+            max_tokens=10000,
             # Synthesis is the step where quality is visible to the reader.
             effort="high",
         )
@@ -306,9 +301,7 @@ def build_briefs(
     ]
 
     log.info("Building %d category brief(s).", len(jobs))
-    # Categories are few and this is the last step before the reader sees
-    # output, so skip the batch queue and take the latency.
-    results = run_jobs(jobs, use_batch=False, label="brief")
+    results = run_jobs(jobs, settings=settings, label="brief")
 
     briefs: list[CategoryBrief] = []
     for category, bucket in grouped.items():

@@ -4,20 +4,20 @@ version = "0.1.0"
 description = "Categorized weekly digest of YouTube subscriptions and saved links, summarized by Claude."
 requires-python = ">=3.11"
 dependencies = [
-    "anthropic>=0.40",
     "google-auth>=2.30",
     "google-auth-oauthlib>=1.2",
     "requests>=2.32",
     "youtube-transcript-api>=1.0",
-    "pydantic>=2.7",
     "PyYAML>=6.0",
-    "python-dateutil>=2.9",
     "trafilatura>=1.12",
     "Jinja2>=3.1",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+# Only needed to run with `provider.name: anthropic`. The default Synthetic
+# path talks plain HTTP and needs nothing extra.
+anthropic = ["anthropic>=1.0"]
 
 [project.scripts]
 digest = "digest.cli:main"
