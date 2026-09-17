@@ -1,0 +1,34 @@
+[project]
+name = "weekly-digest"
+version = "0.1.0"
+description = "Categorized weekly digest of YouTube subscriptions and saved links, summarized by Claude."
+requires-python = ">=3.11"
+dependencies = [
+    "google-auth>=2.30",
+    "google-auth-oauthlib>=1.2",
+    "requests>=2.32",
+    "youtube-transcript-api>=1.0",
+    "PyYAML>=6.0",
+    "trafilatura>=1.12",
+    "Jinja2>=3.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+# Only needed to run with `provider.name: anthropic`. The default Synthetic
+# path talks plain HTTP and needs nothing extra.
+anthropic = ["anthropic>=1.0"]
+
+[project.scripts]
+digest = "digest.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

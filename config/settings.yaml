@@ -1,0 +1,82 @@
+# Runtime settings. Every value here can be overridden by a CLI flag.
+
+provider:
+  # synthetic = synthetic.new's OpenAI-compatible endpoint (open models).
+  # anthropic = the Claude API (needs: pip install -e ".[anthropic]").
+  name: synthetic
+  # The OpenAI-compatible base. Synthetic's docs also show a bare
+  # https://api.synthetic.new/v1/ in the Getting Started snippet; this is the
+  # form their "Supported Endpoints" reference gives, and the one /models
+  # is documented under.
+  base_url: https://api.synthetic.new/openai/v1
+  # Parallel in-flight requests. There is no batch queue on an OpenAI-compatible
+  # gateway, so throughput comes from concurrency. Raise if your plan allows it;
+  # lower to 2-3 if you start seeing 429s.
+  concurrency: 6
+  # Low but non-zero: summarisation wants faithfulness, and some open models
+  # degenerate into repetition at exactly 0.
+  temperature: 0.2
+  # auto  = try json_schema, fall back to json_object, then to prompt-only,
+  #         remembering per model what worked.
+  # Pin to one mode only if you know your models' behaviour and want to skip
+  # the probe.
+  schema_mode: auto
+
+models:
+  # `syn:` aliases, not pinned hf: ids. Synthetic's docs are explicit about
+  # this: "Pinning to specific model names risks 404 errors when we rotate
+  # older models out." An alias tracks their current recommendation, so this
+  # config keeps working when the catalogue moves under it.
+  #
+  #   syn:large:text    currently hf:zai-org/GLM-5.3-Flash      512k context
+  #   syn:small:text    currently hf:zai-org/GLM-4.7-Flash      192k context
+  #   syn:large:vision  currently hf:moonshotai/Kimi-K3         512k context
+  #   syn:small:vision  currently hf:Qwen/Qwen3.8-27B           256k context
+  #
+  # `digest models` prints the live catalogue and what these resolve to today.
+  #
+  # brief    = synthesis across a category. The step you actually read, so it
+  #            gets the large model.
+  # item     = one call per video, the bulk of the run. Also large by default:
+  #            weak item summaries poison every brief built on them. If you hit
+  #            rate limits, this is the one to move to syn:small:text -- small
+  #            models have their own, more generous limit.
+  # classify = a nine-way choice, once per channel, cached forever. Small is
+  #            more than enough.
+  item: "syn:large:text"
+  brief: "syn:large:text"
+  classify: "syn:small:text"
+
+period:
+  # Digest covers the N days before the run, as a half-open [start, end) window.
+  days: 7
+  # Weekday the period ends on when using `--align` (0 = Monday).
+  align_weekday: 0
+
+limits:
+  # Transcript characters fed to the map step per item. ~120k chars is roughly
+  # 30k tokens -- comfortably inside every always-on model (the smallest,
+  # gpt-oss-120b, holds 128k; GLM-5.3-Flash and Kimi-K3 hold 512k). There is
+  # plenty of headroom here, but a 3-hour video already fits, and longer
+  # prompts cost throughput and rate-limit budget rather than buying accuracy.
+  max_body_chars: 120000
+  # Skip items shorter than this many seconds (Shorts, clips, teasers).
+  min_duration_seconds: 120
+  # Hard ceiling on items per run, newest first. Guards against a runaway week.
+  max_items_per_run: 400
+  # Items in a category below this signal score land in "skippable".
+  skippable_below: 3
+  # Only used by the anthropic provider's batch queue.
+  batch_timeout_minutes: 45
+
+sources:
+  # Channels whose uploads are always ignored (music, podcasts you listen to
+  # live, etc). Matched against source id or name, case-insensitively.
+  mute: []
+  # Treat these channel ids as this category, skipping the classifier.
+  pin: {}
+
+delivery:
+  # The digest is always written to digests/. Email is best-effort on top.
+  email: true
+  subject_template: "Weekly digest - week of {week_of} ({items} items)"

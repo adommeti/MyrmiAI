@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weekly digest - Sep 7-13, 2026</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f4f2;">
+<div style="max-width:680px;margin:0 auto;padding:32px 20px;
+            font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+            color:#1b1b1a;line-height:1.55;">
+
+  <h1 style="margin:0 0 4px;font-size:24px;letter-spacing:-0.02em;">Weekly digest</h1>
+  <p style="margin:0 0 24px;color:#6b6b68;font-size:14px;">
+    Sep 7-13, 2026 &middot; 5 items &middot; 2 categories
+  </p>
+
+  <p style="margin:0 0 24px;padding:10px 14px;background:#fdf6e3;border-left:3px solid #d9b45b;
+            font-size:13px;color:#6b5d33;">
+    1 item(s) had no transcript available and were summarised from
+    descriptions only.
+  </p>
+
+  <section style="margin:0 0 40px;">
+    <h2 style="margin:0 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:0.08em;
+               color:#8a5a2b;border-bottom:1px solid #e2e2de;padding-bottom:6px;">
+      AI Engineering &amp; Agents
+      <span style="float:right;color:#a3a39e;font-weight:400;">2</span>
+    </h2>
+
+    <p style="margin:0 0 16px;font-size:15px;">A quieter week with one substantive argument: that the practical constraint on agent quality has moved from prompt wording to what you put in the context window and when. The saved Stratechery piece arrives at a similar place from the market side, treating MCP as a control plane rather than a file format.</p>
+
+    <ul style="margin:0 0 18px;padding-left:18px;font-size:14px;color:#3d3d3a;">
+<li style="margin-bottom:5px;">Context assembly, not prompt phrasing, framed as the current bottleneck (Latent Space, stratechery.com)</li>    </ul>
+
+    <p style="margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:0.06em;
+              color:#8a8a85;">Start here</p>
+    <div style="margin:0 0 12px;padding-left:12px;border-left:2px solid #d8d8d3;">
+      <a href="https://www.youtube.com/watch?v=DDD" style="color:#1b1b1a;font-weight:600;font-size:15px;
+         text-decoration:none;">Context assembly, not prompting, now bounds agent quality</a>
+      <div style="font-size:13px;color:#6b6b68;margin-top:2px;">
+        Latent Space &mdash; The retrieval-window benchmark in the back half is the part worth your time.      </div>
+    </div>
+    <div style="margin:0 0 12px;padding-left:12px;border-left:2px solid #d8d8d3;">
+      <a href="https://stratechery.com/2026/agents/" style="color:#1b1b1a;font-weight:600;font-size:15px;
+         text-decoration:none;">MCP is becoming a control plane, not just a protocol</a>
+      <div style="font-size:13px;color:#6b6b68;margin-top:2px;">
+        stratechery.com &mdash; Matches your note — the control-plane framing is the load-bearing argument.      </div>
+    </div>
+
+    <div style="margin:18px 0 0;padding-top:14px;border-top:1px solid #ececE8;">
+      <a href="https://www.youtube.com/watch?v=DDD" style="color:#1b1b1a;font-weight:600;font-size:15px;
+         text-decoration:none;">Context assembly, not prompting, now bounds agent quality</a>
+      <div style="font-size:12px;color:#8a8a85;margin:3px 0 8px;">Latent Space · 1h18m · signal 5/5 (essential)</div>
+      <ul style="margin:0;padding-left:18px;font-size:14px;color:#3d3d3a;">
+<li style="margin-bottom:4px;">Argues eval gains now come from retrieval and context ordering, not prompt rewrites</li><li style="margin-bottom:4px;">Benchmarks a 1M-token window against selective retrieval: selective wins on both cost and accuracy above ~200k tokens</li><li style="margin-bottom:4px;">Recommends treating context assembly as a versioned artifact with its own tests</li>      </ul>
+      <p style="margin:8px 0 0;font-size:13px;color:#5c5c58;">
+        <strong style="color:#3d3d3a;">Why it matters:</strong> Reframes where to spend engineering effort on internal agents, and argues against the reflex to enlarge the context window.
+      </p>
+    </div>
+    <div style="margin:18px 0 0;padding-top:14px;border-top:1px solid #ececE8;">
+      <a href="https://stratechery.com/2026/agents/" style="color:#1b1b1a;font-weight:600;font-size:15px;
+         text-decoration:none;">MCP is becoming a control plane, not just a protocol</a>
+      <div style="font-size:12px;color:#8a8a85;margin:3px 0 8px;">stratechery.com · signal 4/5 (worth it)</div>
+      <ul style="margin:0;padding-left:18px;font-size:14px;color:#3d3d3a;">
+<li style="margin-bottom:4px;">Frames MCP adoption as a distribution play rather than a technical standard</li><li style="margin-bottom:4px;">Argues the governance surface (who can connect what) is where enterprise value accrues</li>      </ul>
+      <p style="margin:8px 0 0;font-size:13px;color:#5c5c58;">
+        <strong style="color:#3d3d3a;">Why it matters:</strong> Directly relevant to how agent connectors get reviewed and approved internally.
+      </p>
+    </div>
+
+  </section>
+  <section style="margin:0 0 40px;">
+    <h2 style="margin:0 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:0.08em;
+               color:#8a5a2b;border-bottom:1px solid #e2e2de;padding-bottom:6px;">
+      Cybersecurity
+      <span style="float:right;color:#a3a39e;font-weight:400;">3</span>
+    </h2>
+
+    <p style="margin:0 0 16px;font-size:15px;">Two of the three security items this week converge on the same shift: detection content is moving from vendor-maintained IOC lists to portable, version-controlled rules. Microsoft&#39;s release notes and Black Hills&#39; walkthrough describe the same problem from opposite ends — one shipping the capability, the other explaining why teams keep misconfiguring it.</p>
+
+    <ul style="margin:0 0 18px;padding-left:18px;font-size:14px;color:#3d3d3a;">
+<li style="margin-bottom:5px;">Detection-as-code keeps consolidating on Sigma (Black Hills InfoSec, Microsoft Security)</li><li style="margin-bottom:5px;">Both sources flag false-positive tuning, not rule authoring, as the real bottleneck</li>    </ul>
+
+    <p style="margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:0.06em;
+              color:#8a8a85;">Start here</p>
+    <div style="margin:0 0 12px;padding-left:12px;border-left:2px solid #d8d8d3;">
+      <a href="https://www.youtube.com/watch?v=AAA" style="color:#1b1b1a;font-weight:600;font-size:15px;
+         text-decoration:none;">Sigma rules cut lateral-movement false positives by ~60%</a>
+      <div style="font-size:13px;color:#6b6b68;margin-top:2px;">
+        Black Hills Information Security &mdash; Walks through the actual rule diffs; the tuning method transfers directly to Sentinel.      </div>
+    </div>
+
+    <div style="margin:18px 0 0;padding-top:14px;border-top:1px solid #ececE8;">
+      <a href="https://www.youtube.com/watch?v=AAA" style="color:#1b1b1a;font-weight:600;font-size:15px;
+         text-decoration:none;">Sigma rules cut lateral-movement false positives by ~60%</a>
+      <div style="font-size:12px;color:#8a8a85;margin:3px 0 8px;">Black Hills Information Security · 1h02m · signal 5/5 (essential)</div>
+      <ul style="margin:0;padding-left:18px;font-size:14px;color:#3d3d3a;">
+<li style="margin-bottom:4px;">Reports a drop from ~40 to ~15 daily alerts after tuning three Sigma rules against Entra ID sign-in logs</li><li style="margin-bottom:4px;">Recommends scoping by service-principal ID rather than IP, which is what caused most of their noise</li><li style="margin-bottom:4px;">Ships the rule set at github.com/…/sigma-lateral; MIT licensed</li>      </ul>
+      <p style="margin:8px 0 0;font-size:13px;color:#5c5c58;">
+        <strong style="color:#3d3d3a;">Why it matters:</strong> The scoping change is directly portable to Sentinel analytics rules and is the kind of fix that is cheap to trial.
+      </p>
+    </div>
+    <div style="margin:18px 0 0;padding-top:14px;border-top:1px solid #ececE8;">
+      <a href="https://www.youtube.com/watch?v=BBB" style="color:#1b1b1a;font-weight:600;font-size:15px;
+         text-decoration:none;">Defender XDR adds custom detection rules scoped to workload identities</a>
+      <div style="font-size:12px;color:#8a8a85;margin:3px 0 8px;">Microsoft Security · 24m · signal 4/5 (worth it)</div>
+      <ul style="margin:0;padding-left:18px;font-size:14px;color:#3d3d3a;">
+<li style="margin-bottom:4px;">Custom detections can now target workload identities, previously user-principals only</li><li style="margin-bottom:4px;">Attack-disruption coverage extends to SharePoint; no change to licensing tier</li>      </ul>
+      <p style="margin:8px 0 0;font-size:13px;color:#5c5c58;">
+        <strong style="color:#3d3d3a;">Why it matters:</strong> Closes a real gap if you run service-principal-heavy automation, which most Copilot and agent deployments do.
+      </p>
+    </div>
+
+    <p style="margin:16px 0 0;font-size:12px;color:#a3a39e;">
+      Skipped: Weekly infosec news roundup
+    </p>
+  </section>
+
+
+  <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e2e2de;
+            font-size:12px;color:#a3a39e;">
+    Add links for next week to <code>inbox/links.md</code>.
+  </p>
+</div>
+</body>
+</html>
