@@ -9,3 +9,7 @@ client_secret*.json
 token.json
 data/cache/
 .DS_Store
+
+# Claude Code personal settings (may hold approved commands with secrets)
+.claude/settings.local.json
+CLAUDE.local.md
